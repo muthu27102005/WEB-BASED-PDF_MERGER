@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Test</title>
+</head>
+<body>
+    <h1>Flask Route Test</h1>
+    
+    <h2>Test GET Request</h2>
+    <button onclick="testGet()">Test GET /test</button>
+    <div id="get-result"></div>
+    
+    <h2>Test POST Request</h2>
+    <button onclick="testPost()">Test POST /test</button>
+    <div id="post-result"></div>
+    
+    <h2>Test /merge Route</h2>
+    <form id="simple-form">
+        <input type="file" id="test-file" accept=".pdf" multiple><br><br>
+        <input type="text" id="test-filename" placeholder="test.pdf" value="test.pdf"><br><br>
+        <button type="button" onclick="testMerge()">Test /merge Route</button>
+    </form>
+    <div id="merge-result"></div>
+
+    <script>
+        function testGet() {
+            fetch('/test')
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('get-result').innerHTML = 
+                    '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+            })
+            .catch(error => {
+                document.getElementById('get-result').innerHTML = 
+                    '<p style="color: red;">Error: ' + error.message + '</p>';
+            });
+        }
+        
+        function testPost() {
+            const formData = new FormData();
+            formData.append('test', 'data');
+            
+            fetch('/test', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('post-result').innerHTML = 
+                    '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+            })
+            .catch(error => {
+                document.getElementById('post-result').innerHTML = 
+                    '<p style="color: red;">Error: ' + error.message + '</p>';
+            });
+        }
+        
+        function testMerge() {
+            const files = document.getElementById('test-file').files;
+            const filename = document.getElementById('test-filename').value;
+            
+            if (files.length === 0) {
+                alert('Please select at least one file');
+                return;
+            }
+            
+            const formData = new FormData();
+            for (let i = 0; i < files.length; i++) {
+                formData.append('pdfs', files[i]);
+            }
+            formData.append('filename', filename);
+            
+            console.log('Testing /merge route...');
+            console.log('Files:', files.length);
+            console.log('Filename:', filename);
+            
+            fetch('/merge', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                console.log('Response status:', response.status);
+                console.log('Response ok:', response.ok);
+                
+                if (!response.ok) {
+                    return response.text().then(text => {
+                        throw new Error(`HTTP ${response.status}: ${text}`);
+                    });
+                }
+                return response.blob();
+            })
+            .then(blob => {
+                document.getElementById('merge-result').innerHTML = 
+                    '<p style="color: green;">Success! File downloaded. Size: ' + blob.size + ' bytes</p>';
+            })
+            .catch(error => {
+                console.error('Full error:', error);
+                document.getElementById('merge-result').innerHTML = 
+                    '<p style="color: red;">Error: ' + error.message + '</p>';
+            });
+        }
+    </script>
+</body>
+</html>

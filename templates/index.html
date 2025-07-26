@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Merger - Drag & Drop Tool</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <h2>📄 PDF Merger Tool</h2>
+
+        <form id="merge-form" action="/merge" method="post" enctype="multipart/form-data">
+            <div id="drop-area">
+                <p>📂 Drag & drop PDF files here</p>
+                <input type="file" id="fileElem" name="pdfs" accept=".pdf" multiple>
+                <label for="fileElem">or click to select files</label>
+                <div id="file-list"></div>
+            </div>
+            
+            <input type="text" name="filename" placeholder="Enter output filename (e.g., merged.pdf)" required>
+            
+            <button type="submit">🔗 Merge PDFs</button>
+        </form>
+    </div>
+    
+    <script>
+    const dropArea = document.getElementById("drop-area");
+    const fileInput = document.getElementById("fileElem");
+    const fileListDisplay = document.getElementById("file-list");
+    const form = document.getElementById("merge-form");
+
+    // Store files in an array instead of using DataTransfer
+    let selectedFiles = [];
+
+    // Highlight drop area
+    ["dragenter", "dragover"].forEach(eventName => {
+        dropArea.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            dropArea.classList.add("highlight");
+        }, false);
+    });
+
+    ["dragleave", "drop"].forEach(eventName => {
+        dropArea.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            dropArea.classList.remove("highlight");
+        }, false);
+    });
+
+    // Handle drop
+    dropArea.addEventListener("drop", function(e) {
+        let droppedFiles = Array.from(e.dataTransfer.files);
+        // Filter only PDF files
+        droppedFiles = droppedFiles.filter(file => file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf'));
+        selectedFiles = [...selectedFiles, ...droppedFiles];
+        displayFiles();
+    });
+
+    // Handle manual file selection (click + browse)
+    fileInput.addEventListener("change", (e) => {
+        let newFiles = Array.from(e.target.files);
+        selectedFiles = [...selectedFiles, ...newFiles];
+        displayFiles();
+    });
+
+    // Display all selected files with remove option
+    function displayFiles() {
+        fileListDisplay.innerHTML = "";
+        if (selectedFiles.length === 0) {
+            fileListDisplay.innerHTML = "<p style='color: #a0aec0; font-style: italic;'>No files selected</p>";
+            return;
+        }
+        
+        selectedFiles.forEach((file, index) => {
+            const fileItem = document.createElement('div');
+            fileItem.style.cssText = `
+                display: flex; 
+                justify-content: space-between; 
+                align-items: center; 
+                margin: 8px 0; 
+                padding: 8px 12px; 
+                background: white; 
+                border-radius: 6px; 
+                border-left: 4px solid #4299e1; 
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            `;
+            
+            fileItem.innerHTML = `
+                <span style="flex: 1; text-align: left; color: #4a5568;">${file.name}</span>
+                <button type="button" onclick="removeFile(${index})" style="
+                    background: #e53e3e; 
+                    color: white; 
+                    border: none; 
+                    border-radius: 4px; 
+                    padding: 4px 8px; 
+                    cursor: pointer; 
+                    font-size: 12px;
+                    margin: 0;
+                ">Remove</button>
+            `;
+            fileListDisplay.appendChild(fileItem);
+        });
+    }
+
+    // Function to remove a file
+    window.removeFile = function(index) {
+        selectedFiles.splice(index, 1);
+        displayFiles();
+    }
+
+    // Handle form submission
+    form.addEventListener("submit", function(e) {
+        e.preventDefault();
+        
+        if (selectedFiles.length === 0) {
+            alert("Please select at least one PDF file to merge.");
+            return;
+        }
+        
+        const filename = document.querySelector('input[name="filename"]').value;
+        if (!filename.trim()) {
+            alert("Please enter an output filename.");
+            return;
+        }
+
+        // Show loading state
+        const submitButton = document.querySelector('button[type="submit"]');
+        const originalText = submitButton.textContent;
+        submitButton.textContent = "🔄 Merging...";
+        submitButton.disabled = true;
+
+        // Create FormData and append files
+        const formData = new FormData();
+        selectedFiles.forEach(file => {
+            formData.append('pdfs', file);
+        });
+        formData.append('filename', filename);
+
+        // Debug: Log form data
+        console.log('Sending request to /merge');
+        console.log('Number of files:', selectedFiles.length);
+        console.log('Filename:', filename);
+
+        // Submit via fetch with better error handling
+        fetch('/merge', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => {
+            console.log('Response status:', response.status);
+            console.log('Response headers:', response.headers);
+            
+            if (!response.ok) {
+                // Try to get error message from response
+                return response.text().then(text => {
+                    throw new Error(`HTTP ${response.status}: ${text}`);
+                });
+            }
+            return response.blob();
+        })
+        .then(blob => {
+            // Create download link
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            a.download = filename.endsWith('.pdf') ? filename : filename + '.pdf';
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            
+            // Reset form
+            selectedFiles = [];
+            displayFiles();
+            document.querySelector('input[name="filename"]').value = '';
+            
+            alert("PDF files merged successfully!");
+        })
+        .catch(error => {
+            console.error('Full error:', error);
+            alert("Error merging PDFs: " + error.message);
+        })
+        .finally(() => {
+            // Reset button
+            submitButton.textContent = originalText;
+            submitButton.disabled = false;
+        });
+    });
+</script>
+
+</body>
+</html>
